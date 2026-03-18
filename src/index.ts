@@ -12,11 +12,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Temp directory for downloaded files
-const tempDir = path.join(__dirname, 'temp');
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
+// Temp directory for downloaded files (Vercel uses /tmp)
+const tempDir = process.env.TEMP_DIR || '/tmp';
 
 /**
  * Download file from URL
