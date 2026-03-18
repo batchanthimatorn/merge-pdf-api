@@ -13,13 +13,17 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 /**
- * Download file from URL
+ * Download file from URL and return buffer with content type
  */
-async function downloadFile(url: string): Promise<Buffer> {
+async function downloadFile(url: string): Promise<{ buffer: Buffer; contentType: string }> {
   const response = await axios.get(url, {
     responseType: 'arraybuffer'
   });
-  return Buffer.from(response.data);
+  const contentType = response.headers['content-type'] || '';
+  return {
+    buffer: Buffer.from(response.data),
+    contentType: contentType.toLowerCase()
+  };
 }
 
 /**
@@ -92,12 +96,24 @@ app.post('/api/merge', async (req: Request, res: Response): Promise<void> => {
         return;
       }
 
-      const fileExtension = url.split('.').pop()?.toLowerCase();
-      console.log(`Downloading file ${i + 1}/${urlList.length}: ${url} (${fileExtension})`);
+      console.log(`Downloading file ${i + 1}/${urlList.length}: ${url}`);
 
       try {
-        const fileBuffer = await downloadFile(url);
+        const { buffer: fileBuffer, contentType } = await downloadFile(url);
         
+        // Detect file type from content-type header or URL extension
+        let fileExtension = '';
+        if (contentType.includes('jpeg') || contentType.includes('jpg')) {
+          fileExtension = 'jpg';
+        } else if (contentType.includes('pdf')) {
+          fileExtension = 'pdf';
+        } else {
+          // Fallback to URL extension
+          fileExtension = url.split('.').pop()?.toLowerCase()?.split('?')[0] || '';
+        }
+        
+        console.log(`Detected file type: ${fileExtension} (content-type: ${contentType})`);
+
         if (fileExtension === 'jpg' || fileExtension === 'jpeg') {
           // Convert JPG to PDF
           console.log(`Converting JPG to PDF...`);
