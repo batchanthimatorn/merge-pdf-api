@@ -27,21 +27,30 @@ async function downloadFile(url: string): Promise<{ buffer: Buffer; contentType:
 }
 
 /**
- * Convert JPG/JPEG to PDF
+ * Convert image to PDF
  */
-async function convertJpgToPdf(jpgBuffer: Buffer): Promise<PDFDocument> {
+async function convertImageToPdf(imageBuffer: Buffer, imageType: string): Promise<PDFDocument> {
   const pdfDoc = await PDFDocument.create();
-  const jpgImage = await pdfDoc.embedJpg(jpgBuffer);
+  
+  let image;
+  if (imageType === 'jpg' || imageType === 'jpeg') {
+    image = await pdfDoc.embedJpg(imageBuffer);
+  } else if (imageType === 'png') {
+    image = await pdfDoc.embedPng(imageBuffer);
+  } else {
+    // Default to JPEG for unsupported types (will likely fail but let's try)
+    image = await pdfDoc.embedJpg(imageBuffer);
+  }
   
   // Add page with same aspect ratio as image
-  const jpgDims = jpgImage.scale(1);
-  const page = pdfDoc.addPage([jpgDims.width, jpgDims.height]);
+  const imageDims = image.scale(1);
+  const page = pdfDoc.addPage([imageDims.width, imageDims.height]);
   
-  page.drawImage(jpgImage, {
+  page.drawImage(image, {
     x: 0,
     y: 0,
-    width: jpgDims.width,
-    height: jpgDims.height,
+    width: imageDims.width,
+    height: imageDims.height,
   });
   
   return pdfDoc;
@@ -114,18 +123,18 @@ app.post('/api/merge', async (req: Request, res: Response): Promise<void> => {
         
         console.log(`Detected file type: ${fileExtension} (content-type: ${contentType})`);
 
-        if (fileExtension === 'jpg' || fileExtension === 'jpeg') {
-          // Convert JPG to PDF
-          console.log(`Converting JPG to PDF...`);
-          const jpgPdf = await convertJpgToPdf(fileBuffer);
+        if (fileExtension === 'jpg' || fileExtension === 'jpeg' || fileExtension === 'png') {
+          // Convert image to PDF
+          console.log(`Converting ${fileExtension.toUpperCase()} to PDF...`);
+          const imagePdf = await convertImageToPdf(fileBuffer, fileExtension);
           
-          // Copy all pages from converted JPG PDF
-          const copiedPages = await mergedPdf.copyPages(jpgPdf, jpgPdf.getPageIndices());
+          // Copy all pages from converted image PDF
+          const copiedPages = await mergedPdf.copyPages(imagePdf, imagePdf.getPageIndices());
           copiedPages.forEach((page) => {
             mergedPdf.addPage(page);
           });
           
-          console.log(`Converted and merged 1 page from JPG ${i + 1}`);
+          console.log(`Converted and merged 1 page from ${fileExtension.toUpperCase()} ${i + 1}`);
         } else if (fileExtension === 'pdf') {
           // Merge PDF
           const pdfDoc = await PDFDocument.load(fileBuffer);
@@ -186,5 +195,5 @@ app.get('/health', (req: Request, res: Response) => {
 app.listen(PORT, () => {
   console.log(`🚀 PDF Merge API running on http://localhost:${PORT}`);
   console.log(`📝 API Endpoint: POST /api/merge`);
-  console.log(`💡 Example: curl -X POST http://localhost:${PORT}/api/merge -H "Content-Type: application/json" -d '{"urls": "url1.pdf,url2.jpg"}'`);
+  console.log(`💡 Example: curl -X POST http://localhost:${PORT}/api/merge -H "Content-Type: application/json" -d '{"urls": "url1.pdf,url2.jpg,url3.png"}'`);
 });
